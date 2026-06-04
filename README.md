@@ -7,6 +7,7 @@ de la même base. Réalisé sur **un seul GPU H100 80 Go**.
 - **Base** : [`Qwen/Qwen2.5-7B`](https://huggingface.co/Qwen/Qwen2.5-7B)
 - **Cible de comparaison** : [`Qwen/Qwen2.5-7B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct)
 - **🤗 Modèle final publié** : [`fenyo/Qwen2.5-7B-base2instruct`](https://huggingface.co/fenyo/Qwen2.5-7B-base2instruct)
+- **Checkpoints intermédiaires** : [SFT](https://huggingface.co/fenyo/Qwen2.5-7B-base2instruct-SFT) · [DPO](https://huggingface.co/fenyo/Qwen2.5-7B-base2instruct-DPO)
 
 ## Résultats (lm-eval, mesure équitable)
 
