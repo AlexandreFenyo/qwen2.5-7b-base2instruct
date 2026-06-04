@@ -1,0 +1,16 @@
+# venvs
+env-train/
+env-gen/
+# gros artefacts (non versionnés)
+ckpt/
+models/
+data/
+wandb/
+logs/
+# résultats lm-eval (échantillons volumineux) — on garde seulement summary.json (force-add)
+results/*
+!results/summary.json
+# divers
+__pycache__/
+*.pyc
+.DS_Store

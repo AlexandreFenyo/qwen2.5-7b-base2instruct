@@ -1,0 +1,27 @@
+{
+  "base": {
+    "IFEval (prompt strict)": 27.36,
+    "GSM8K (flexible)": 83.02,
+    "MMLU": 71.83
+  },
+  "sft": {
+    "IFEval (prompt strict)": 44.92,
+    "GSM8K (flexible)": 77.48,
+    "MMLU": 69.12
+  },
+  "dpo": {
+    "IFEval (prompt strict)": 44.73,
+    "GSM8K (flexible)": 77.1,
+    "MMLU": 69.93
+  },
+  "rlvr": {
+    "IFEval (prompt strict)": 45.1,
+    "GSM8K (flexible)": 77.41,
+    "MMLU": 69.86
+  },
+  "instruct_officiel": {
+    "IFEval (prompt strict)": 71.9,
+    "GSM8K (flexible)": 84.69,
+    "MMLU": 68.81
+  }
+}
