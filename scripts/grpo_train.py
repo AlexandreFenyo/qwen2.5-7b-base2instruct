@@ -32,19 +32,47 @@ def _num_eq(a, b):
             return False
 
 
+def _text(comp):
+    return comp[-1]["content"] if isinstance(comp, list) else comp
+
+
+def _reward_math(text, g):
+    pred = _extract(text)
+    r = 0.0
+    if BOXED.search(text):
+        r += 0.1
+    if pred is not None and _num_eq(pred, g):
+        r += 1.0
+    return r
+
+
 def reward_fn(completions, gold, **kw):
-    """1.0 si réponse correcte + 0.1 si format \\boxed{} présent."""
-    rewards = []
-    for comp, g in zip(completions, gold):
-        text = comp[-1]["content"] if isinstance(comp, list) else comp
-        pred = _extract(text)
-        r = 0.0
-        if BOXED.search(text):
-            r += 0.1
-        if pred is not None and _num_eq(pred, g):
-            r += 1.0
-        rewards.append(r)
-    return rewards
+    """Maths seul : 1.0 si réponse correcte + 0.1 si format \\boxed{} présent."""
+    return [_reward_math(_text(c), g) for c, g in zip(completions, gold)]
+
+
+def reward_multi(completions, task, gold, ground_truth, **kw):
+    """Multi-domaine : maths (math-verify) OU suivi d'instructions.
+    ground_truth ifeval = liste de specs -> reward GRADUÉ = fraction de contraintes satisfaites
+    (variance intra-groupe non nulle -> évite l'effondrement de l'avantage GRPO)."""
+    import json
+    from if_functions import check_constraint
+    out = []
+    for comp, t, g, gt in zip(completions, task, gold, ground_truth):
+        text = _text(comp)
+        if t == "math":
+            out.append(_reward_math(text, g))
+        else:  # ifeval : moyenne des contraintes respectées
+            try:
+                spec = json.loads(gt) if isinstance(gt, str) else gt
+            except Exception:
+                spec = None
+            if not spec:
+                out.append(0.0); continue
+            specs = spec if isinstance(spec, list) else [spec]
+            ok = sum(1.0 for s in specs if check_constraint(text, s))
+            out.append(ok / len(specs))
+    return out
 
 
 def main():
@@ -61,6 +89,7 @@ def main():
     ap.add_argument("--bs", type=int, default=8)            # complétions par device-step (multiple de num_gen)
     ap.add_argument("--accum", type=int, default=4)
     ap.add_argument("--no_vllm", action="store_true")
+    ap.add_argument("--multi", action="store_true")   # reward multi-domaine (ifeval + maths)
     ap.add_argument("--run_name", default="rlvr")
     ap.add_argument("--smoke", action="store_true")
     args = ap.parse_args()
@@ -100,8 +129,9 @@ def main():
         model_init_kwargs={"dtype": torch.bfloat16, "attn_implementation": "eager",
                            "trust_remote_code": True},
     )
+    reward = reward_multi if args.multi else reward_fn
     trainer = GRPOTrainer(model=args.model, args=cfg, train_dataset=ds,
-                          reward_funcs=reward_fn, processing_class=tok, peft_config=lora)
+                          reward_funcs=reward, processing_class=tok, peft_config=lora)
     trainer.train()
     if not args.smoke:
         trainer.save_model(args.output); tok.save_pretrained(args.output)

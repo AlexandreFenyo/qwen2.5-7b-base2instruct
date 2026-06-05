@@ -69,14 +69,20 @@ même base. Recette validée sur **Qwen2.5-7B** (base) vs **Qwen2.5-7B-Instruct*
    un modèle complet (trop lent).
 5. Lancer les jobs longs dans des commandes **dédiées** (pas de `pkill` en tête qui casse le lancement).
 
-## Résultats (lm-eval, 2026-06-04)
+## Résultats (lm-eval)
 | modèle | IFEval (prompt strict) | GSM8K (flexible) | MMLU |
 |---|---|---|---|
 | base (Qwen2.5-7B) | 27.4 | 83.0 | 71.8 |
 | + SFT | 44.9 | 77.5 | 69.1 |
 | + DPO | 44.7 | 77.1 | 69.9 |
-| + RLVR | **45.1** | 77.4 | 69.9 |
+| + RLVR (maths seul) | 45.1 | 77.4 | 69.9 |
+| + RLVR (multi binaire — échec) | 44.7 | 76.9 | 69.9 |
+| **+ RLVR (multi GRADUÉ — meilleur)** | **49.5** | 76.8 | 69.9 |
 | **instruct officiel** | **71.9** | **84.7** | 68.8 |
+
+Le RLVR à **récompense graduée** (suivi d'instructions) gagne **+4.8 pts IFEval** sur le DPO (et +4.4 sur
+le RLVR maths-seul), sans régression GSM8K/MMLU. C'est le meilleur instruct produit. Encore loin de
+l'officiel (échelle de données), mais la recette RLVR instruction-following est validée.
 
 **Piège d'éval critique** : en `strict-match`, l'instruct officiel tombait à **21 %** sur GSM8K — pur
 artefact (il n'émet pas le format `#### N` et sa CoT verbeuse dépassait la limite de tokens). Mesuré
@@ -97,9 +103,32 @@ vérifier le format de réponse attendu par le parser avant de conclure.
 - **MMLU** : aucune régression notable (~69-72 partout) ; nos modèles retiennent même un peu plus de
   connaissances que l'officiel (69.9 vs 68.8).
 
-## Pour égaler l'officiel dans une future expérience (leviers identifiés)
-1. **RLVR multi-domaines** : ajouter des récompenses vérifiables **suivi d'instructions** (contraintes
-   IFEval vérifiées par programme) + code (tests unitaires), pas uniquement GSM8K → c'est le principal
-   levier pour combler l'écart IFEval.
+## Tentative RLVR multi-domaines (ifeval + maths) — résultat NÉGATIF, leçon clé
+On a relancé un RLVR (1000 steps) avec récompense **vérifiable de suivi d'instructions** (24 validateurs
+type IFEval sur `allenai/RLVR-IFeval`) + maths. Résultat : **IFEval inchangé** (44.7, vs 44.7 DPO / 45.1
+maths-seul), GSM8K 76.9, MMLU 69.9.
+
+**Diagnostic (important, transférable)** : effondrement de l'avantage GRPO. Métriques wandb :
+`reward` 0.25→0.50 (le RL apprend mécaniquement) MAIS `frac_reward_zero_std` 0.5→**1.0**. Avec une
+**récompense binaire à contrainte unique** (1 contrainte/prompt), dans chaque groupe de 8 générations les
+8 obtiennent vite le **même** reward (toutes réussissent la contrainte facile, ou toutes échouent la dure)
+→ écart-type de groupe nul → **avantage nul → gradient nul**. Le modèle apprend les contraintes faciles
+(qu'il savait déjà faire) puis le signal s'éteint. Et l'entraînement **mono-contrainte ne transfère pas** à
+IFEval (`prompt_level_strict` exige *toutes* les contraintes d'un prompt multi-contraintes).
+
+**Le correctif (ESSAYÉ ET VALIDÉ → +4.8 pts IFEval)** :
+1. **Récompense GRADUÉE** : prompts à **plusieurs contraintes** (2-3, catégories disjointes), reward =
+   fraction satisfaite (0 / 0.33 / 0.66 / 1.0) → variance intra-groupe non nulle → avantage non nul →
+   gradient vivant. Mesuré : `frac_reward_zero_std` reste ~0.5 (vs 1.0 en binaire) tout le run.
+   Résultat : IFEval 44.7 → **49.5**. Voir `scripts/03c_prep_rlvr_graded.py` + `reward_multi`.
+2. **Distribution d'entraînement proche du test** : prompts multi-contraintes anglais, sur des bases
+   *différentes* du jeu de test IFEval (ici générées localement). Types alignés sur les 24 validateurs.
+3. **Surveiller `frac_reward_zero_std`** pendant le RL : s'il monte vers 1, l'apprentissage est mort
+   (diagnostic décisif de l'échec binaire).
+
+## Pour égaler l'officiel (leviers, par priorité réestimée)
+1. **RLVR à récompense graduée multi-contraintes** (cf. ci-dessus) — la version binaire ne suffit pas.
 2. **Plus de SFT** (data + epochs) et **DPO sur préférences ciblées** (pas seulement ultrafeedback générique).
 3. **Préserver les maths** : inclure des données maths au SFT ou pondérer pour ne pas diluer le base.
+4. Échelle : l'officiel utilise ~1M+ SFT, DPO large, RLVR multi-domaines à grande échelle — difficile à
+   égaler exactement sur 1 H100 en quelques jours, mais les leviers ci-dessus rapprochent.

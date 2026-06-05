@@ -16,11 +16,15 @@ de la même base. Réalisé sur **un seul GPU H100 80 Go**.
 | base Qwen2.5-7B | 27.4 | 83.0 | 71.8 |
 | + SFT | 44.9 | 77.5 | 69.1 |
 | + DPO | 44.7 | 77.1 | 69.9 |
-| **+ RLVR (final)** | **45.1** | 77.4 | 69.9 |
+| + RLVR (maths seul) | 45.1 | 77.4 | 69.9 |
+| + RLVR (multi binaire — échec) | 44.7 | 76.9 | 69.9 |
+| **+ RLVR (multi GRADUÉ — final)** | **49.5** | 76.8 | 69.9 |
 | instruct officiel | 71.9 | 84.7 | 68.8 |
 
-Le gain instruct vient surtout du **SFT** (IFEval 27→45). Le DPO générique et le RLVR maths-seul bougent
-peu IFEval. Analyse complète et leviers d'amélioration dans **[`RECIPE.md`](RECIPE.md)**.
+Le gain vient du **SFT** (IFEval 27→45) puis du **RLVR à récompense graduée** (+4.8). À noter : un RLVR
+de suivi d'instructions à récompense **binaire** échoue (effondrement de l'avantage GRPO,
+`frac_reward_zero_std`→1) — il faut une récompense **graduée multi-contraintes**. Analyse complète et
+leviers dans **[`RECIPE.md`](RECIPE.md)**.
 
 ## Pipeline
 
