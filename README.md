@@ -11,20 +11,29 @@ de la même base. Réalisé sur **un seul GPU H100 80 Go**.
 
 ## Résultats (lm-eval, mesure équitable)
 
+**Pipeline final (v2) — données ciblées à chaque étape :**
+
 | modèle | IFEval (suivi d'instr.) | GSM8K (maths) | MMLU |
 |---|---|---|---|
 | base Qwen2.5-7B | 27.4 | 83.0 | 71.8 |
-| + SFT | 44.9 | 77.5 | 69.1 |
-| + DPO | 44.7 | 77.1 | 69.9 |
-| + RLVR (maths seul) | 45.1 | 77.4 | 69.9 |
-| + RLVR (multi binaire — échec) | 44.7 | 76.9 | 69.9 |
-| **+ RLVR (multi GRADUÉ — final)** | **49.5** | 76.8 | 69.9 |
+| + SFT (300k) | 51.2 | 77.6 | 69.2 |
+| + DPO **ciblé** (instruction-following) | 68.9 | 80.1 | 70.0 |
+| **+ RLVR gradué (final)** | **75.0** | 79.7 | **70.2** |
 | instruct officiel | 71.9 | 84.7 | 68.8 |
 
-Le gain vient du **SFT** (IFEval 27→45) puis du **RLVR à récompense graduée** (+4.8). À noter : un RLVR
-de suivi d'instructions à récompense **binaire** échoue (effondrement de l'avantage GRPO,
-`frac_reward_zero_std`→1) — il faut une récompense **graduée multi-contraintes**. Analyse complète et
-leviers dans **[`RECIPE.md`](RECIPE.md)**.
+**Ce modèle dépasse l'instruct officiel sur IFEval (75.0 vs 71.9) et MMLU (70.2 vs 68.8)** ; en retrait
+sur les maths (79.7 vs 84.7). Spécialisé suivi d'instructions (axe optimisé), pas généraliste.
+
+Progression : 27 → 51 (SFT) → 69 (**DPO ciblé**, +17.7, l'étape décisive) → 75 (RLVR gradué, +6.1).
+La leçon : **le signal doit cibler la capacité visée** (vérifié 3×). Détails, pièges (NaN, effondrement
+GRPO binaire, artefact d'éval GSM8K) et « cours » base→instruct dans **[`RECIPE.md`](RECIPE.md)** et la
+[model card HF](https://huggingface.co/fenyo/Qwen2.5-7B-base2instruct).
+
+<details><summary>Première itération (v1) — pour comparaison</summary>
+
+DPO générique + RLVR maths : IFEval plafonnait à **49.5**. Le passage à un DPO *ciblé* et un RLVR
+*gradué* (v2) a fait toute la différence (+25.5 IFEval).
+</details>
 
 ## Pipeline
 

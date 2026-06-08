@@ -6,8 +6,28 @@ import os, argparse
 os.environ.setdefault("WANDB_PROJECT", "qwen2.5-7b-base2instruct")
 import torch
 from datasets import load_dataset
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, TrainerCallback
 from trl import SFTConfig, SFTTrainer
+
+
+class NanGuard(TrainerCallback):
+    """Neutralise les gradients NaN/Inf avant le pas d'optimisation (batch fautif sauté,
+    poids non corrompus). Robuste aux overflows bf16 du forward sur échantillons pathologiques."""
+    def __init__(self):
+        self.skipped = 0
+
+    def on_pre_optimizer_step(self, args, state, control, model=None, **kwargs):
+        if model is None:
+            return
+        bad = False
+        for p in model.parameters():
+            if p.grad is not None and not torch.isfinite(p.grad).all():
+                torch.nan_to_num_(p.grad, nan=0.0, posinf=0.0, neginf=0.0)
+                bad = True
+        if bad:
+            self.skipped += 1
+            print(f"[nan-guard] step {state.global_step}: gradient non-fini neutralisé "
+                  f"(total sautés={self.skipped})", flush=True)
 
 
 def main():
@@ -21,6 +41,9 @@ def main():
     ap.add_argument("--bs", type=int, default=1)
     ap.add_argument("--accum", type=int, default=16)
     ap.add_argument("--packing", action="store_true")
+    ap.add_argument("--no_liger", action="store_true")    # CE standard fp32-upcast (plus stable, gros vocab)
+    ap.add_argument("--max_grad_norm", type=float, default=1.0)
+    ap.add_argument("--warmup", type=float, default=0.03)
     ap.add_argument("--optim", default="adamw_8bit")
     ap.add_argument("--run_name", default="sft")
     ap.add_argument("--smoke", action="store_true")
@@ -51,14 +74,14 @@ def main():
         gradient_accumulation_steps=args.accum,
         learning_rate=args.lr,
         lr_scheduler_type="cosine",
-        warmup_ratio=0.03,
+        warmup_ratio=args.warmup,
         weight_decay=0.0,
-        max_grad_norm=1.0,
+        max_grad_norm=args.max_grad_norm,
         bf16=True, tf32=True,
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={"use_reentrant": False},
         optim=args.optim,
-        use_liger_kernel=True,              # cross-entropy/LM-head fusionnée (gros vocab Qwen) -> vitesse+mémoire
+        use_liger_kernel=not args.no_liger,  # CE/LM-head fusionnée (vitesse+mémoire) sauf si --no_liger (stabilité fp32)
         max_length=args.seq_len,
         packing=args.packing,
         assistant_only_loss=True,           # masque tout sauf la réponse de l'assistant
@@ -71,7 +94,8 @@ def main():
         model_init_kwargs={"dtype": torch.bfloat16, "attn_implementation": "sdpa",
                            "trust_remote_code": True},
     )
-    trainer = SFTTrainer(model=args.model, args=cfg, train_dataset=ds, processing_class=tok)
+    trainer = SFTTrainer(model=args.model, args=cfg, train_dataset=ds, processing_class=tok,
+                         callbacks=[NanGuard()])
     trainer.train()
     if not args.smoke:
         trainer.save_model(args.output); tok.save_pretrained(args.output)

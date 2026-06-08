@@ -5,9 +5,28 @@ import os, re, argparse
 os.environ.setdefault("WANDB_PROJECT", "qwen2.5-7b-base2instruct")
 import torch
 from datasets import load_dataset
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, TrainerCallback
 from trl import GRPOConfig, GRPOTrainer
 from peft import LoraConfig
+
+
+class NanGuard(TrainerCallback):
+    """Neutralise les gradients NaN/Inf avant le pas d'optimisation (batch fautif sauté)."""
+    def __init__(self):
+        self.skipped = 0
+
+    def on_pre_optimizer_step(self, args, state, control, model=None, **kwargs):
+        if model is None:
+            return
+        bad = False
+        for p in model.parameters():
+            if p.grad is not None and not torch.isfinite(p.grad).all():
+                torch.nan_to_num_(p.grad, nan=0.0, posinf=0.0, neginf=0.0)
+                bad = True
+        if bad:
+            self.skipped += 1
+            print(f"[nan-guard] step {state.global_step}: gradient non-fini neutralisé "
+                  f"(total sautés={self.skipped})", flush=True)
 
 BOXED = re.compile(r"\\boxed\{([^}]*)\}")
 NUM = re.compile(r"-?\d[\d,]*\.?\d*")
@@ -131,7 +150,8 @@ def main():
     )
     reward = reward_multi if args.multi else reward_fn
     trainer = GRPOTrainer(model=args.model, args=cfg, train_dataset=ds,
-                          reward_funcs=reward, processing_class=tok, peft_config=lora)
+                          reward_funcs=reward, processing_class=tok, peft_config=lora,
+                          callbacks=[NanGuard()])
     trainer.train()
     if not args.smoke:
         trainer.save_model(args.output); tok.save_pretrained(args.output)

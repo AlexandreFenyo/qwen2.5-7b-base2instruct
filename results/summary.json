@@ -4,30 +4,20 @@
     "GSM8K": 83.0,
     "MMLU": 71.8
   },
-  "+SFT": {
-    "IFEval": 44.9,
-    "GSM8K": 77.5,
-    "MMLU": 69.1
+  "SFT+ (300k)": {
+    "IFEval": 51.2,
+    "GSM8K": 77.6,
+    "MMLU": 69.2
   },
-  "+DPO": {
-    "IFEval": 44.7,
-    "GSM8K": 77.1,
-    "MMLU": 69.9
+  "+DPO ciblé": {
+    "IFEval": 68.9,
+    "GSM8K": 80.1,
+    "MMLU": 70.0
   },
-  "+RLVR maths": {
-    "IFEval": 45.1,
-    "GSM8K": 77.4,
-    "MMLU": 69.9
-  },
-  "+RLVR multi binaire": {
-    "IFEval": 44.7,
-    "GSM8K": 76.9,
-    "MMLU": 69.9
-  },
-  "+RLVR gradué": {
-    "IFEval": 49.5,
-    "GSM8K": 76.8,
-    "MMLU": 69.9
+  "+RLVR gradué (FINAL)": {
+    "IFEval": 75.0,
+    "GSM8K": 79.7,
+    "MMLU": 70.2
   },
   "instruct officiel": {
     "IFEval": 71.9,

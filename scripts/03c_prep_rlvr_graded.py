@@ -40,8 +40,11 @@ def gen_constraint(cat, rng):
             return _c(cat, "Write your entire response in english, and in all lowercase letters; no capital letters are allowed.", func_name="validate_lowercase")
         return _c(cat, "Write your entire response in all capital letters.", func_name="validate_uppercase")
     if cat == "length":
-        n = rng.choice([60, 80, 100, 120])
-        return _c(cat, f"Your response must contain at least {n} words.", func_name="validate_word_constraint", N=n, quantifier="at least")
+        if rng.random() < 0.5:
+            n = rng.choice([60, 80, 100, 120])
+            return _c(cat, f"Your response must contain at least {n} words.", func_name="validate_word_constraint", N=n, quantifier="at least")
+        n = rng.choice([3, 4, 5])
+        return _c(cat, f"Your response must contain at least {n} sentences.", func_name="verify_sentence_constraint", N=n, quantifier="at least")
     if cat == "structure":
         if rng.random() < 0.5:
             n = rng.choice([2, 3, 4])
@@ -51,10 +54,16 @@ def gen_constraint(cat, rng):
     if cat == "punct":
         return _c(cat, "Do not use any commas in your entire response.", func_name="validate_no_commas")
     if cat == "content":
-        a, b = rng.sample(KEYWORDS, 2)
-        return _c(cat, f'Include the keywords "{a}" and "{b}" in your response.', func_name="verify_keywords", keyword_list=[a, b])
+        if rng.random() < 0.5:
+            a, b = rng.sample(KEYWORDS, 2)
+            return _c(cat, f'Include the keywords "{a}" and "{b}" in your response.', func_name="verify_keywords", keyword_list=[a, b])
+        x = rng.choice(KEYWORDS)
+        return _c(cat, f'Do not use the word "{x}" anywhere in your response.', func_name="validate_forbidden_words", forbidden_words=[x])
     if cat == "adorn":
-        choice = rng.choice(["title", "postscript", "placeholders", "highlight", "end"])
+        choice = rng.choice(["title", "postscript", "placeholders", "highlight", "end", "sections"])
+        if choice == "sections":
+            n = rng.choice([2, 3])
+            return _c(cat, f'Organize your response into at least {n} sections, each beginning with the marker "Section".', func_name="validate_sections", N=n, section_splitter="Section")
         if choice == "title":
             return _c(cat, "Include a title wrapped in double angle brackets, for example <<My Title>>.", func_name="validate_title")
         if choice == "postscript":

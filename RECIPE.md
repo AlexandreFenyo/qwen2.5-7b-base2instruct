@@ -69,20 +69,31 @@ même base. Recette validée sur **Qwen2.5-7B** (base) vs **Qwen2.5-7B-Instruct*
    un modèle complet (trop lent).
 5. Lancer les jobs longs dans des commandes **dédiées** (pas de `pkill` en tête qui casse le lancement).
 
-## Résultats (lm-eval)
+## Résultats — PIPELINE v2 (FINAL, meilleur)
+Données ciblées à chaque étape (SFT 300k + DPO instruction-following + RLVR gradué) :
+
 | modèle | IFEval (prompt strict) | GSM8K (flexible) | MMLU |
 |---|---|---|---|
 | base (Qwen2.5-7B) | 27.4 | 83.0 | 71.8 |
-| + SFT | 44.9 | 77.5 | 69.1 |
-| + DPO | 44.7 | 77.1 | 69.9 |
-| + RLVR (maths seul) | 45.1 | 77.4 | 69.9 |
-| + RLVR (multi binaire — échec) | 44.7 | 76.9 | 69.9 |
-| **+ RLVR (multi GRADUÉ — meilleur)** | **49.5** | 76.8 | 69.9 |
-| **instruct officiel** | **71.9** | **84.7** | 68.8 |
+| + SFT (300k) | 51.2 | 77.6 | 69.2 |
+| + DPO **ciblé** (tulu-3-pref-IF) | 68.9 | 80.1 | 70.0 |
+| **+ RLVR gradué (FINAL)** | **75.0** | 79.7 | **70.2** |
+| **instruct officiel** | 71.9 | 84.7 | 68.8 |
 
-Le RLVR à **récompense graduée** (suivi d'instructions) gagne **+4.8 pts IFEval** sur le DPO (et +4.4 sur
-le RLVR maths-seul), sans régression GSM8K/MMLU. C'est le meilleur instruct produit. Encore loin de
-l'officiel (échelle de données), mais la recette RLVR instruction-following est validée.
+**On DÉPASSE l'officiel sur IFEval (75.0 vs 71.9) et MMLU (70.2 vs 68.8)** ; en retrait sur les maths
+(79.7 vs 84.7). Progression IFEval : 27 → 51 (SFT) → **69 (DPO ciblé, +17.7 = l'étape décisive)** →
+75 (RLVR gradué, +6.1 = « installer puis amplifier »). On a spécialisé vers le suivi d'instructions
+(axe optimisé), pas généraliste.
+
+### Pour mémoire — pipeline v1 (première itération)
+DPO **générique** (ultrafeedback) + RLVR maths-seul : IFEval plafonnait à 44.7→45.1. Le RLVR *gradué*
+montait à 49.5. Le passage v1→v2 (DPO **ciblé** + SFT élargi) a apporté +25.5 pts IFEval — c'est la
+preuve que **le levier est la donnée ciblée, pas l'échelle de calcul**.
+
+**Piège d'éval critique** : en `strict-match`, l'instruct officiel tombait à **21 %** sur GSM8K — pur
+artefact (il n'émet pas le format `#### N` et sa CoT verbeuse dépassait la limite de tokens). Mesuré
+équitablement (max_gen_toks=1024, `flexible-extract` = dernier nombre), il fait **84.7 %**. Toujours
+vérifier le format de réponse attendu par le parser avant de conclure.
 
 **Piège d'éval critique** : en `strict-match`, l'instruct officiel tombait à **21 %** sur GSM8K — pur
 artefact (il n'émet pas le format `#### N` et sa CoT verbeuse dépassait la limite de tokens). Mesuré
